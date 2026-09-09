@@ -945,7 +945,7 @@ function renderEditResult(r, elapsed){
 }
 
 let _taskPollingTimer = null;
-let _lastDoneTask = null;
+let _resultShownId = { gen: null, edit: null };
 
 const TASK_STATUS_META = {
   pending: { text: '🕐 排队中', cls: 'badge-yellow' },
@@ -965,7 +965,6 @@ async function loadTasks(){
     const items = (listRes.data && listRes.data.items) || [];
     renderQueueStats(stats);
     renderQueueItems(items);
-        _lastDoneTask = items.find(function(t){ return t.status === 'done'; }) || null;
     maybeRenderResultFromTask(items);
   }catch(e){  }
 }
@@ -1020,14 +1019,13 @@ function maybeRenderResultFromTask(items){
   const pageId = active.id;
   const want = pageId === 'page-edit' ? 'edit' : (pageId === 'page-gen' ? 'gen' : null);
   if (!want) return;
-    const t = items.find(function(x){ return x.status === 'done' && x.type === want && x.result; });
-  if (t){
-    const el = document.getElementById(pageId === 'page-gen' ? 'genResult' : 'editResult');
-    if (el){
-      const placeholder = el.querySelector('.empty-state');
-      if (placeholder) renderTaskResult(t, pageId === 'page-gen' ? 'gen' : 'edit');
-    }
-  }
+  const t = items.find(function(x){ return x.status === 'done' && x.type === want && x.result; });
+  if (!t) return;
+  if (t.id === _resultShownId[want]) return;
+  const el = document.getElementById(pageId === 'page-gen' ? 'genResult' : 'editResult');
+  if (!el) return;
+  renderTaskResult(t, want);
+  _resultShownId[want] = t.id;
 }
 
 function renderTaskResult(task, mode){
