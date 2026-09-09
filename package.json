@@ -1,0 +1,23 @@
+{
+  "name": "sensenova-studio",
+  "version": "1.1.0",
+  "description": "SenseNova U1.5 Lite 生图工作台 — 文生图 / 图像编辑 / 任务队列 / 产物管理 / 请求日志",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "express": "^4.22.2"
+  },
+  "keywords": [
+    "sensenova",
+    "sensenova-u1.5-lite",
+    "text-to-image",
+    "image-edit",
+    "webui"
+  ],
+  "license": "MIT"
+}
