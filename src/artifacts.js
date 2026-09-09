@@ -41,7 +41,7 @@ function safeDir(id) {
 }
 
 function save(taskId, type, meta, imageBuffer, ext) {
-  if (!isValidId(taskId)) throw { type: 'invalid_request_error', message: '非法的产物 id' };
+  if (!isValidId(taskId)) throw { type: 'invalid_request_error', message: '非法的图片 id' };
   const dir = path.join(ARTIFACTS_DIR, taskId);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 

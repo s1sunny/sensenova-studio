@@ -411,7 +411,7 @@ app.get('/api/artifacts/:id/meta', (req, res) => {
   if (!meta) {
     return res
       .status(404)
-      .json({ success: false, error: { type: 'not_found_error', message: '产物不存在' } });
+      .json({ success: false, error: { type: 'not_found_error', message: '图片不存在' } });
   }
   res.json({ success: true, data: meta });
 });
@@ -441,7 +441,7 @@ app.delete('/api/artifacts/:id', (req, res) => {
   if (!ok) {
     return res
       .status(404)
-      .json({ success: false, error: { type: 'not_found_error', message: '产物不存在' } });
+      .json({ success: false, error: { type: 'not_found_error', message: '图片不存在' } });
   }
   res.json({ success: true });
 });

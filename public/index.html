@@ -209,12 +209,12 @@
           <div class="text-[10px]" style="color:var(--c-text-5)">SenseNova U1.5 Lite</div>
         </div>
       </div>
-      <div class="sidebar-version">v1.1.0</div>
+      <div class="sidebar-version">v1.1.1</div>
     </div>
     <nav class="flex-1 py-2 overflow-y-auto">
       <div class="nav-item active" data-page="gen" onclick="showPage('gen',this)">🎨 文生图</div>
       <div class="nav-item" data-page="edit" onclick="showPage('edit',this)">🖌️ 图像编辑</div>
-      <div class="nav-item" data-page="artifacts" onclick="showPage('artifacts',this)">🗂️ 产物管理</div>
+      <div class="nav-item" data-page="artifacts" onclick="showPage('artifacts',this)">🗂️ 画廊管理</div>
       <div class="nav-item" data-page="logs" onclick="showPage('logs',this)">📜 请求日志</div>
       <div class="nav-item" data-page="settings" onclick="showPage('settings',this)">⚙️ 设置</div>
     </nav>
@@ -409,7 +409,7 @@
     </div>
 
     <div class="page" id="page-artifacts">
-      <div class="section-title"><div class="page-icon">🗂️</div> 产物管理</div>
+      <div class="section-title"><div class="page-icon">🗂️</div> 画廊管理</div>
       <div class="card mb-4">
         <div class="filter-bar" style="margin-bottom:0">
           <button class="filter-btn active" data-filter="all" onclick="setArtFilter('all',this)">全部</button>
@@ -530,7 +530,7 @@
       <div class="card">
         <div class="card-header">ℹ️ 数据说明</div>
         <div style="color:var(--c-text-4);font-size:13px;line-height:1.8">
-          · 产物图片存于 <code>data/artifacts/&lt;taskId&gt;/</code>，可通过 <code>/api/artifacts/:id/image</code> 访问<br>
+          · 生成的图片存于 <code>data/artifacts/&lt;taskId&gt;/</code>，可通过 <code>/api/artifacts/:id/image</code> 访问<br>
           · API Key 仅保存在本地 <code>data/config.json</code>（不入库），页面上只显示脱敏值；也可用环境变量 <code>SENSNOVA_API_KEY</code><br>
           · 主题与默认参数持久化到 localStorage / data/settings.json
         </div>
@@ -627,6 +627,26 @@ async function api(path, opts){
     throw e;
   }
   return data;
+}
+
+let _hasKey = null;
+async function refreshKeyState(){
+  try{
+    const r = await api('/api/config');
+    _hasKey = !!(r.data && r.data.hasKey);
+  }catch(e){ _hasKey = null; }
+  return _hasKey;
+}
+function promptNoApiKey(){
+  _hasKey = false;
+  showModal({ title:'尚未配置 API Key', message:'需要先在「设置」页面填写 SenseNova API Key，才能提交生成或编辑任务。', confirmText:'前往设置' })
+    .then(function(ok){ if (ok) showPage('settings'); });
+}
+async function ensureApiKey(){
+  if (_hasKey === false){ promptNoApiKey(); return false; }
+  if (_hasKey === null){ await refreshKeyState(); }
+  if (_hasKey === false){ promptNoApiKey(); return false; }
+  return true;
 }
 
 function fmtTime(ts){
@@ -726,6 +746,7 @@ async function doGenerate(){
   if (!prompt){ toast('prompt 不能为空','warn'); return; }
   const size = getGenSize();
   if (size === null){ toast('尺寸参数不合法','warn'); return; }
+  if (!await ensureApiKey()) return;
   const count = Math.max(1, Math.min(9, parseInt(document.getElementById('genCount').value, 10) || 1));
   const body = {
     prompt: prompt,
@@ -742,7 +763,8 @@ async function doGenerate(){
     loadTasks();
     startTaskPolling();
   }catch(e){
-    toast('提交失败','err', (e.error && e.error.type ? '['+e.error.type+'] ' : '') + e.message);
+    if (e.error && e.error.type === 'no_api_key'){ promptNoApiKey(); }
+    else toast('提交失败','err', (e.error && e.error.type ? '['+e.error.type+'] ' : '') + e.message);
   }finally{
     setLoading('genBtn', false);
   }
@@ -864,6 +886,7 @@ async function doEdit(){
   const prompt = document.getElementById('editPrompt').value.trim();
   if (!prompt){ toast('编辑指令不能为空','warn'); return; }
   if (!_editImages.length){ toast('请至少上传一张图片','warn'); return; }
+  if (!await ensureApiKey()) return;
     setLoading('editBtn', true, '处理图片…');
   try{
     const images = [];
@@ -896,7 +919,8 @@ async function doEdit(){
     loadTasks();
     startTaskPolling();
   }catch(e){
-    toast('提交失败','err', (e.error && e.error.type ? '['+e.error.type+'] ' : '') + e.message);
+    if (e.error && e.error.type === 'no_api_key'){ promptNoApiKey(); }
+    else toast('提交失败','err', (e.error && e.error.type ? '['+e.error.type+'] ' : '') + e.message);
   }finally{
     setLoading('editBtn', false);
   }
@@ -1051,7 +1075,10 @@ async function retryTask(id){
     toast('已重新加入队列','ok');
     loadTasks();
     startTaskPolling();
-  }catch(e){ toast('重试失败','err', e.message); }
+  }catch(e){
+    if (e.error && e.error.type === 'no_api_key'){ promptNoApiKey(); }
+    else toast('重试失败','err', e.message);
+  }
 }
 
 let _artFilter = 'all', _artSearch = '', _artPage = 1, _artSearchTimer = null;
@@ -1078,7 +1105,7 @@ async function loadArtifacts(){
     const data = r.data || {};
     const items = data.items || [];
     _artItems = items;
-    if (!items.length){ g.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><p>暂无产物</p></div>'; document.getElementById('artPagination').innerHTML=''; updateBatchBar(); return; }
+    if (!items.length){ g.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><p>暂无图片</p></div>'; document.getElementById('artPagination').innerHTML=''; updateBatchBar(); return; }
     g.innerHTML = items.map(function(it){
       const checked = _artSelected[it.id] ? 'checked' : '';
       return '<div class="gallery-item" data-id="' + esc(it.id) + '" onclick="showArtifactDetail(\'' + jsStr(it.id) + '\')">' +
@@ -1174,7 +1201,7 @@ async function renderArtifactDetail(id){
         '<button onclick="useAsEditRef(\'' + jsStr(id) + '\')" class="btn btn-outline btn-sm">🖌️ 用作改图参考</button>' +
         '<button onclick="deleteArtifact(\'' + jsStr(id) + '\')" class="btn btn-danger btn-sm">🗑 删除</button>' +
       '</div>';
-    showDetailModal('产物详情', html);
+    showDetailModal('图片详情', html);
   }catch(e){ toast('加载详情失败','err', e.message); }
 }
 function metaRow(k, v){
@@ -1228,12 +1255,12 @@ function updateBatchBar(){
 
 async function batchDeleteArtifacts(){
   const ids = Object.keys(_artSelected);
-  if (!ids.length){ toast('请先选择要删除的产物','warn'); return; }
-  const ok = await showModal({ title:'批量删除', message:'确定删除选中的 ' + ids.length + ' 个产物？图片文件将一并删除。', danger:true, confirmText:'删除' });
+  if (!ids.length){ toast('请先选择要删除的图片','warn'); return; }
+  const ok = await showModal({ title:'批量删除', message:'确定删除选中的 ' + ids.length + ' 张图片？图片文件将一并删除。', danger:true, confirmText:'删除' });
   if (!ok) return;
   try{
     const r = await api('/api/artifacts', { method:'DELETE', body:{ ids: ids } });
-    toast('已删除 ' + (r.removed||0) + ' 个产物','ok');
+    toast('已删除 ' + (r.removed||0) + ' 张图片','ok');
     _artSelected = {};
     loadArtifacts();
   }catch(e){ toast('批量删除失败','err', e.message); }
@@ -1285,7 +1312,7 @@ function copyPrompt(){
 }
 
 async function deleteArtifact(id){
-  const ok = await showModal({ title:'确认删除', message:'确定删除该产物？图片文件将一并删除。', danger:true, confirmText:'删除' });
+  const ok = await showModal({ title:'确认删除', message:'确定删除该图片？图片文件将一并删除。', danger:true, confirmText:'删除' });
   if (!ok) return;
   try{
     await api('/api/artifacts/' + encodeURIComponent(id), { method:'DELETE' });
@@ -1400,6 +1427,7 @@ async function loadConfig(){
   try{
     const r = await api('/api/config');
     const c = r.data || {};
+    _hasKey = !!c.hasKey;
     document.getElementById('cfgMask').textContent = c.hasKey ? (c.keyMasked || '-') : '未配置';
     document.getElementById('cfgStatus').style.color = c.hasKey ? 'var(--c-accent-green)' : 'var(--c-accent-amber)';
   }catch(e){  }
